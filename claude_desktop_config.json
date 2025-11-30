@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "language-analyzer": {
+      "command": "bash",
+      "args": [
+        "-c",
+        "source ~/.nvm/nvm.sh && nvm use 18 && node /home/vikasavn/language-mcp/build/index.js"
+      ]
+    }
+  }
+}
