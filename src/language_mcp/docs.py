@@ -265,7 +265,8 @@ class DocReader:
         tasks = [read_with_semaphore(f) for f in doc_files]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        for file_path, result in zip(doc_files, results, strict=False):
+        # Length should always match since gather returns results for each task
+        for file_path, result in zip(doc_files, results, strict=True):
             if isinstance(result, DocFile):
                 docs[str(file_path)] = result
             else:

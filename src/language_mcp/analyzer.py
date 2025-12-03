@@ -250,7 +250,8 @@ class ProjectAnalyzer:
         tasks = [analyze_with_semaphore(str(f)) for f in python_files]
         analysis_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        for file_path, result in zip(python_files, analysis_results, strict=False):
+        # Length should always match since gather returns results for each task
+        for file_path, result in zip(python_files, analysis_results, strict=True):
             if isinstance(result, AnalysisResult):
                 results[str(file_path)] = result
             else:
@@ -370,6 +371,10 @@ class ProjectAnalyzer:
             return True
 
         return False
+
+    async def analyze_single_file(self, file_path: str) -> AnalysisResult:
+        """Analyze a single file. Public method for external use."""
+        return await self._python_analyzer.analyze_file(file_path)
 
     def get_cached_results(self, project_path: str) -> dict[str, AnalysisResult] | None:
         """Get cached results for a project."""

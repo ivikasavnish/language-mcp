@@ -232,7 +232,7 @@ class BackgroundWorker:
         if path.suffix == ".py":
             if change_type in (Change.added, Change.modified):
                 # Re-analyze the file
-                result = await self._analyzer._python_analyzer.analyze_file(file_path)
+                result = await self._analyzer.analyze_single_file(file_path)
                 project.analysis_results[file_path] = result
 
                 await self._emit_event(
