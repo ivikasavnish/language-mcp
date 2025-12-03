@@ -1,2 +1,0 @@
-[console_scripts]
-language-mcp = language_mcp.server:main
