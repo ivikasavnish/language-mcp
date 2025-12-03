@@ -225,6 +225,87 @@ class LanguageMCPServer:
                         "required": ["path", "name"],
                     },
                 ),
+                Tool(
+                    name="get_diagnostics",
+                    description=(
+                        "Get linting diagnostics (errors, warnings, hints) for a project. "
+                        "Includes style issues, complexity warnings, and type hint suggestions."
+                    ),
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "string",
+                                "description": "Path to the project directory.",
+                            },
+                            "severity": {
+                                "type": "string",
+                                "description": "Filter by severity level.",
+                                "enum": ["error", "warning", "info", "hint", "all"],
+                            },
+                            "file": {
+                                "type": "string",
+                                "description": "Filter diagnostics for a specific file.",
+                            },
+                        },
+                        "required": ["path"],
+                    },
+                ),
+                Tool(
+                    name="get_lint_summary",
+                    description=(
+                        "Get a summary of all linting issues in a project, "
+                        "grouped by severity and source."
+                    ),
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "string",
+                                "description": "Path to the project directory.",
+                            },
+                        },
+                        "required": ["path"],
+                    },
+                ),
+                Tool(
+                    name="lint_file",
+                    description=(
+                        "Run linter on a specific file and get diagnostics. "
+                        "Checks for syntax errors, style issues, complexity, and type hints."
+                    ),
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "file": {
+                                "type": "string",
+                                "description": "Path to the file to lint.",
+                            },
+                        },
+                        "required": ["file"],
+                    },
+                ),
+                Tool(
+                    name="get_code_hints",
+                    description=(
+                        "Get code improvement hints and suggestions for a file or project. "
+                        "Includes missing type annotations and best practice suggestions."
+                    ),
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "string",
+                                "description": "Path to the project directory.",
+                            },
+                            "file": {
+                                "type": "string",
+                                "description": "Specific file to get hints for.",
+                            },
+                        },
+                        "required": ["path"],
+                    },
+                ),
             ]
 
         @self.server.call_tool()
@@ -417,6 +498,66 @@ class LanguageMCPServer:
                 return {"error": f"Symbol not found: {symbol_name}"}
 
             return {"symbols": matching, "count": len(matching)}
+
+        elif name == "get_diagnostics":
+            path = arguments.get("path")
+            if path == ".":
+                path = os.getcwd()
+            path = str(Path(path).resolve())
+
+            severity = arguments.get("severity", "all")
+            file_filter = arguments.get("file")
+
+            if file_filter:
+                diagnostics = self.worker.get_diagnostics_by_file(path, file_filter)
+            elif severity != "all":
+                diagnostics = self.worker.get_diagnostics_by_severity(path, severity)
+            else:
+                diagnostics = self.worker.get_all_diagnostics(path)
+
+            return {"diagnostics": diagnostics, "count": len(diagnostics)}
+
+        elif name == "get_lint_summary":
+            path = arguments.get("path")
+            if path == ".":
+                path = os.getcwd()
+            path = str(Path(path).resolve())
+
+            summary = self.worker.get_lint_summary(path)
+            return summary
+
+        elif name == "lint_file":
+            file_path = arguments.get("file")
+            if file_path == ".":
+                return {"error": "Please specify a file path, not a directory"}
+
+            file_path = str(Path(file_path).resolve())
+            diagnostics = await self.worker.lint_file(file_path)
+
+            return {"file": file_path, "diagnostics": diagnostics, "count": len(diagnostics)}
+
+        elif name == "get_code_hints":
+            path = arguments.get("path")
+            if path == ".":
+                path = os.getcwd()
+            path = str(Path(path).resolve())
+
+            file_filter = arguments.get("file")
+
+            # Get hint-level diagnostics (type hints and suggestions)
+            if file_filter:
+                diagnostics = self.worker.get_diagnostics_by_file(path, file_filter)
+            else:
+                diagnostics = self.worker.get_all_diagnostics(path)
+
+            # Filter for hints and type-related issues
+            hints = [
+                d
+                for d in diagnostics
+                if d["severity"] == "hint" or d["source"] == "type-hints"
+            ]
+
+            return {"hints": hints, "count": len(hints)}
 
         else:
             return {"error": f"Unknown tool: {name}"}

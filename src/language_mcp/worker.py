@@ -4,12 +4,13 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Awaitable, Callable
+from typing import Any, Awaitable, Callable
 
 from watchfiles import Change, awatch
 
 from .analyzer import AnalysisResult, ProjectAnalyzer
 from .docs import DocFile, DocReader
+from .linter import LintResult, ProjectLinter
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ class Project:
     name: str
     analysis_results: dict[str, AnalysisResult] = field(default_factory=dict)
     documentation: dict[str, DocFile] = field(default_factory=dict)
+    lint_results: dict[str, LintResult] = field(default_factory=dict)
     is_analyzing: bool = False
     is_watching: bool = False
     last_full_analysis: float = 0.0
@@ -34,6 +36,7 @@ class BackgroundWorker:
         self._projects: dict[str, Project] = {}
         self._analyzer = ProjectAnalyzer()
         self._doc_reader = DocReader()
+        self._linter = ProjectLinter()
         self._watch_tasks: dict[str, asyncio.Task] = {}
         self._running = False
         self._lock = asyncio.Lock()
@@ -148,7 +151,17 @@ class BackgroundWorker:
             docs = await self._doc_reader.scan_project_docs(project.path)
             project.documentation = docs
 
+            # Lint code
+            logger.info(f"Linting code for {project.name}")
+            lint_results = await self._linter.lint_project(project.path)
+            project.lint_results = lint_results
+
             project.last_full_analysis = asyncio.get_event_loop().time()
+
+            # Calculate lint summary
+            total_diagnostics = sum(
+                len(r.diagnostics) for r in lint_results.values()
+            )
 
             # Emit event
             await self._emit_event(
@@ -159,12 +172,13 @@ class BackgroundWorker:
                     "docs_found": len(docs),
                     "symbols": sum(len(r.symbols) for r in results.values()),
                     "dependencies": sum(len(r.dependencies) for r in results.values()),
+                    "diagnostics": total_diagnostics,
                 },
             )
 
             logger.info(
                 f"Analysis complete for {project.name}: "
-                f"{len(results)} files, {len(docs)} docs"
+                f"{len(results)} files, {len(docs)} docs, {total_diagnostics} diagnostics"
             )
 
         except Exception as e:
@@ -235,6 +249,10 @@ class BackgroundWorker:
                 result = await self._analyzer.analyze_single_file(file_path)
                 project.analysis_results[file_path] = result
 
+                # Re-lint the file
+                lint_result = await self._linter.lint_single_file(file_path)
+                project.lint_results[file_path] = lint_result
+
                 await self._emit_event(
                     project.path,
                     "file_updated",
@@ -242,11 +260,13 @@ class BackgroundWorker:
                         "file": file_path,
                         "symbols": len(result.symbols),
                         "dependencies": len(result.dependencies),
+                        "diagnostics": len(lint_result.diagnostics),
                     },
                 )
 
             elif change_type == Change.deleted:
                 project.analysis_results.pop(file_path, None)
+                project.lint_results.pop(file_path, None)
                 await self._emit_event(
                     project.path, "file_deleted", {"file": file_path}
                 )
@@ -360,3 +380,82 @@ class BackgroundWorker:
     ) -> list[dict]:
         """Search documentation for a query."""
         return self._doc_reader.search_docs(project_path, query, case_sensitive)
+
+    def get_all_diagnostics(self, project_path: str) -> list[dict[str, Any]]:
+        """Get all lint diagnostics from a project."""
+        project = self.get_project(project_path)
+        if not project:
+            return []
+
+        diagnostics = []
+        for result in project.lint_results.values():
+            for diag in result.diagnostics:
+                diagnostics.append(
+                    {
+                        "file": diag.file_path,
+                        "line": diag.line,
+                        "column": diag.column,
+                        "end_line": diag.end_line,
+                        "end_column": diag.end_column,
+                        "severity": diag.severity,
+                        "code": diag.code,
+                        "message": diag.message,
+                        "source": diag.source,
+                    }
+                )
+        return diagnostics
+
+    def get_diagnostics_by_severity(
+        self, project_path: str, severity: str
+    ) -> list[dict[str, Any]]:
+        """Get diagnostics filtered by severity."""
+        all_diags = self.get_all_diagnostics(project_path)
+        return [d for d in all_diags if d["severity"] == severity]
+
+    def get_diagnostics_by_file(
+        self, project_path: str, file_path: str
+    ) -> list[dict[str, Any]]:
+        """Get diagnostics for a specific file."""
+        all_diags = self.get_all_diagnostics(project_path)
+        return [d for d in all_diags if d["file"] == file_path]
+
+    def get_lint_summary(self, project_path: str) -> dict[str, Any]:
+        """Get a summary of lint results for a project."""
+        project = self.get_project(project_path)
+        if not project:
+            return {}
+
+        summary: dict[str, Any] = {
+            "files_linted": len(project.lint_results),
+            "total_diagnostics": 0,
+            "by_severity": {"error": 0, "warning": 0, "info": 0, "hint": 0},
+            "by_source": {},
+        }
+
+        for result in project.lint_results.values():
+            for diag in result.diagnostics:
+                summary["total_diagnostics"] += 1
+                summary["by_severity"][diag.severity] = (
+                    summary["by_severity"].get(diag.severity, 0) + 1
+                )
+                summary["by_source"][diag.source] = (
+                    summary["by_source"].get(diag.source, 0) + 1
+                )
+
+        return summary
+
+    async def lint_file(self, file_path: str) -> list[dict[str, Any]]:
+        """Lint a single file and return diagnostics."""
+        result = await self._linter.lint_single_file(file_path)
+        return [
+            {
+                "file": d.file_path,
+                "line": d.line,
+                "column": d.column,
+                "severity": d.severity,
+                "code": d.code,
+                "message": d.message,
+                "source": d.source,
+            }
+            for d in result.diagnostics
+        ]

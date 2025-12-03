@@ -1,13 +1,15 @@
 # Language MCP
 
-A Model Context Protocol (MCP) server for language analysis with background AST processing and documentation reading. This server runs as a live HTTP service and automatically analyzes code changes in real-time.
+A Model Context Protocol (MCP) server for language analysis with background AST processing, linting, and documentation reading. This server runs as a live HTTP service and automatically analyzes code changes in real-time.
 
 ## Features
 
-- **Background Analysis**: AST analysis and documentation reading run in the background automatically
+- **Background Analysis**: AST analysis, linting, and documentation reading run in the background automatically
 - **File Watching**: Automatically detects and analyzes file changes
 - **Symbol Extraction**: Get functions, classes, methods, and variables from your codebase
 - **Dependency Analysis**: View import dependencies and build dependency trees
+- **Code Linting**: Built-in linter with style checks, complexity analysis, and type hint suggestions
+- **Code Hints**: Get improvement suggestions including missing type annotations
 - **Documentation Parsing**: Parse and search Markdown and RST documentation files
 - **HTTP Transport**: Runs as a live HTTP server with SSE support
 
@@ -44,7 +46,9 @@ language-mcp --project /path/to/project1 --project /path/to/project2
 
 Once the server is running, you can use the following MCP tools:
 
-#### `add_project`
+#### Project Management
+
+##### `add_project`
 Add a project directory to be analyzed. Analysis runs automatically in the background.
 
 ```json
@@ -54,7 +58,7 @@ Add a project directory to be analyzed. Analysis runs automatically in the backg
 }
 ```
 
-#### `remove_project`
+##### `remove_project`
 Remove a project from analysis.
 
 ```json
@@ -63,10 +67,21 @@ Remove a project from analysis.
 }
 ```
 
-#### `list_projects`
+##### `list_projects`
 List all registered projects and their analysis status.
 
-#### `get_symbols`
+##### `refresh_project`
+Force a full re-analysis of a project.
+
+```json
+{
+  "path": "/path/to/project"
+}
+```
+
+#### Symbol Analysis
+
+##### `get_symbols`
 Get all symbols (functions, classes, variables) from a project.
 
 ```json
@@ -77,7 +92,19 @@ Get all symbols (functions, classes, variables) from a project.
 }
 ```
 
-#### `get_dependencies`
+##### `get_symbol_info`
+Get detailed information about a specific symbol.
+
+```json
+{
+  "path": "/path/to/project",
+  "name": "MyClass"
+}
+```
+
+#### Dependency Analysis
+
+##### `get_dependencies`
 Get all import dependencies from a project.
 
 ```json
@@ -87,7 +114,7 @@ Get all import dependencies from a project.
 }
 ```
 
-#### `get_dependency_tree`
+##### `get_dependency_tree`
 Get the dependency tree showing relationships between files and modules.
 
 ```json
@@ -96,7 +123,50 @@ Get the dependency tree showing relationships between files and modules.
 }
 ```
 
-#### `get_docs`
+#### Linting & Code Quality
+
+##### `get_diagnostics`
+Get linting diagnostics (errors, warnings, hints) for a project.
+
+```json
+{
+  "path": "/path/to/project",
+  "severity": "warning",  // Optional: filter by severity (error, warning, info, hint, all)
+  "file": "src/main.py"   // Optional: filter for specific file
+}
+```
+
+##### `get_lint_summary`
+Get a summary of all linting issues grouped by severity and source.
+
+```json
+{
+  "path": "/path/to/project"
+}
+```
+
+##### `lint_file`
+Run linter on a specific file and get diagnostics.
+
+```json
+{
+  "file": "/path/to/file.py"
+}
+```
+
+##### `get_code_hints`
+Get code improvement hints and suggestions (missing type annotations, best practices).
+
+```json
+{
+  "path": "/path/to/project",
+  "file": "src/main.py"   // Optional: filter for specific file
+}
+```
+
+#### Documentation
+
+##### `get_docs`
 Get documentation files and their structure.
 
 ```json
@@ -106,7 +176,7 @@ Get documentation files and their structure.
 }
 ```
 
-#### `search_docs`
+##### `search_docs`
 Search documentation for a query string.
 
 ```json
@@ -117,24 +187,23 @@ Search documentation for a query string.
 }
 ```
 
-#### `refresh_project`
-Force a full re-analysis of a project.
+## Linter Checks
 
-```json
-{
-  "path": "/path/to/project"
-}
-```
+The built-in linter performs the following checks:
 
-#### `get_symbol_info`
-Get detailed information about a specific symbol.
-
-```json
-{
-  "path": "/path/to/project",
-  "name": "MyClass"
-}
-```
+| Code | Severity | Description |
+|------|----------|-------------|
+| E001 | error | Syntax errors |
+| W001 | warning | Unused imports |
+| W191 | info | Tabs in indentation |
+| W291 | info | Trailing whitespace |
+| E501 | info | Line too long (>120 chars) |
+| E722 | warning | Bare except clause |
+| C901 | warning | Too many function arguments (>7) |
+| C902 | info | Function too long (>50 lines) |
+| C903 | warning | Too much nesting (depth >4) |
+| T001 | hint | Missing return type annotation |
+| T002 | hint | Missing argument type annotation |
 
 ## MCP Configuration
 
@@ -201,6 +270,10 @@ ruff check src tests
 │                                     │                     │  │
 │                                     │  ┌───────────────┐  │  │
 │                                     │  │ AST Analyzer  │  │  │
+│                                     │  └───────────────┘  │  │
+│                                     │                     │  │
+│                                     │  ┌───────────────┐  │  │
+│                                     │  │    Linter     │  │  │
 │                                     │  └───────────────┘  │  │
 │                                     │                     │  │
 │                                     │  ┌───────────────┐  │  │
