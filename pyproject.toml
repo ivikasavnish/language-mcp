@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "language-mcp"
+version = "0.1.0"
+description = "A language analysis MCP server with background AST and documentation analysis"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "mcp>=1.0.0",
+    "uvicorn>=0.30.0",
+    "aiofiles>=24.1.0",
+    "watchfiles>=0.24.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "black>=24.0.0",
+    "ruff>=0.6.0",
+]
+
+[project.scripts]
+language-mcp = "language_mcp.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = []
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
