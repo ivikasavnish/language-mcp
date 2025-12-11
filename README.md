@@ -6,6 +6,9 @@ A Model Context Protocol (MCP) server for language analysis with background AST 
 
 - **Background Analysis**: AST analysis, linting, and documentation reading run in the background automatically
 - **File Watching**: Automatically detects and analyzes file changes
+- **Multi-Language Support**: Detect and analyze Python, Go, Java, JavaScript, TypeScript, C, C++, C#, Ruby, Rust, Swift, Kotlin, PHP
+- **Language-Specific Documentation**: Access godoc (Go), javadoc (Java), jsdoc (JavaScript/TypeScript), pydoc (Python)
+- **API Specification Support**: Detect and parse Swagger/OpenAPI specifications
 - **Symbol Extraction**: Get functions, classes, methods, and variables from your codebase
 - **Dependency Analysis**: View import dependencies and build dependency trees
 - **Code Linting**: Built-in linter with style checks, complexity analysis, and type hint suggestions
@@ -164,6 +167,55 @@ Get code improvement hints and suggestions (missing type annotations, best pract
 }
 ```
 
+#### Language Detection & Documentation
+
+##### `detect_languages`
+Detect programming languages used in a project and get statistics.
+
+```json
+{
+  "path": "/path/to/project"
+}
+```
+
+Returns language statistics including file counts, percentages, and available documentation tools.
+
+##### `get_language_docs`
+Get language-specific documentation for a project (godoc, javadoc, jsdoc, pydoc).
+
+```json
+{
+  "path": "/path/to/project",
+  "language": "Go"  // e.g., "Go", "Java", "Python", "JavaScript", "TypeScript"
+}
+```
+
+Supports:
+- **Go**: `godoc` / `go doc` for package documentation
+- **Java**: `javadoc` for API documentation
+- **JavaScript/TypeScript**: `jsdoc` for inline documentation
+- **Python**: `pydoc` for module documentation
+
+##### `get_api_specs`
+Get detected API specification files (Swagger/OpenAPI) in a project.
+
+```json
+{
+  "path": "/path/to/project"
+}
+```
+
+##### `parse_api_spec`
+Parse an API specification file and extract endpoints and metadata.
+
+```json
+{
+  "file": "/path/to/swagger.json"
+}
+```
+
+Returns parsed information including endpoints, descriptions, and operation IDs.
+
 #### Documentation
 
 ##### `get_docs`
@@ -186,6 +238,26 @@ Search documentation for a query string.
   "case_sensitive": false
 }
 ```
+
+## Supported Languages
+
+The server can detect and provide contextual information for the following languages:
+
+| Language | Extensions | Documentation Tools | API Specs |
+|----------|-----------|---------------------|-----------|
+| Python | .py, .pyw, .pyi | pydoc, sphinx | - |
+| Go | .go | godoc, go doc | swagger |
+| Java | .java | javadoc | swagger |
+| JavaScript | .js, .jsx, .mjs, .cjs | jsdoc | swagger, openapi |
+| TypeScript | .ts, .tsx | typedoc, jsdoc | swagger, openapi |
+| C | .c, .h | doxygen | - |
+| C++ | .cpp, .cc, .cxx, .hpp, .hh, .hxx | doxygen | - |
+| C# | .cs | docfx, sandcastle | swagger |
+| Ruby | .rb | rdoc, yard | - |
+| Rust | .rs | rustdoc | - |
+| Swift | .swift | jazzy | - |
+| Kotlin | .kt, .kts | dokka | - |
+| PHP | .php | phpdoc | swagger |
 
 ## Linter Checks
 

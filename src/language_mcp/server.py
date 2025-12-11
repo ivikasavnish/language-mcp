@@ -306,6 +306,80 @@ class LanguageMCPServer:
                         "required": ["path"],
                     },
                 ),
+                Tool(
+                    name="detect_languages",
+                    description=(
+                        "Detect programming languages used in a project. "
+                        "Returns language statistics, file counts, and available documentation tools."
+                    ),
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "string",
+                                "description": "Path to the project directory.",
+                            },
+                        },
+                        "required": ["path"],
+                    },
+                ),
+                Tool(
+                    name="get_language_docs",
+                    description=(
+                        "Get language-specific documentation for a project. "
+                        "Supports godoc (Go), javadoc (Java), jsdoc (JavaScript/TypeScript), "
+                        "and pydoc (Python)."
+                    ),
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "string",
+                                "description": "Path to the project directory.",
+                            },
+                            "language": {
+                                "type": "string",
+                                "description": (
+                                    "Programming language name (e.g., 'Go', 'Java', 'Python')."
+                                ),
+                            },
+                        },
+                        "required": ["path", "language"],
+                    },
+                ),
+                Tool(
+                    name="get_api_specs",
+                    description=(
+                        "Get API specification files (Swagger/OpenAPI) detected in a project."
+                    ),
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "string",
+                                "description": "Path to the project directory.",
+                            },
+                        },
+                        "required": ["path"],
+                    },
+                ),
+                Tool(
+                    name="parse_api_spec",
+                    description=(
+                        "Parse an API specification file (Swagger/OpenAPI) and extract "
+                        "endpoints, descriptions, and other metadata."
+                    ),
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "file": {
+                                "type": "string",
+                                "description": "Path to the API spec file (JSON or YAML).",
+                            },
+                        },
+                        "required": ["file"],
+                    },
+                ),
             ]
 
         @self.server.call_tool()
@@ -558,6 +632,55 @@ class LanguageMCPServer:
             ]
 
             return {"hints": hints, "count": len(hints)}
+
+        elif name == "detect_languages":
+            path = arguments.get("path")
+            if path == ".":
+                path = os.getcwd()
+            path = str(Path(path).resolve())
+
+            languages = self.worker.get_detected_languages(path)
+            primary = self.worker.get_primary_language(path)
+
+            return {
+                "languages": languages,
+                "primary_language": primary,
+                "total_languages": len(languages),
+            }
+
+        elif name == "get_language_docs":
+            path = arguments.get("path")
+            if path == ".":
+                path = os.getcwd()
+            path = str(Path(path).resolve())
+
+            language = arguments.get("language")
+            if not language:
+                return {"error": "Language parameter is required"}
+
+            docs = await self.worker.get_language_documentation(path, language)
+            return docs
+
+        elif name == "get_api_specs":
+            path = arguments.get("path")
+            if path == ".":
+                path = os.getcwd()
+            path = str(Path(path).resolve())
+
+            specs = self.worker.get_api_specs(path)
+            return {
+                "api_specs": specs,
+                "count": sum(len(v) for v in specs.values()),
+            }
+
+        elif name == "parse_api_spec":
+            file_path = arguments.get("file")
+            if not file_path:
+                return {"error": "File parameter is required"}
+
+            file_path = str(Path(file_path).resolve())
+            spec_info = await self.worker.parse_api_spec(file_path)
+            return spec_info
 
         else:
             return {"error": f"Unknown tool: {name}"}

@@ -9,7 +9,9 @@ from typing import Any, Awaitable, Callable
 from watchfiles import Change, awatch
 
 from .analyzer import AnalysisResult, ProjectAnalyzer
+from .doc_server import DocServerHelper
 from .docs import DocFile, DocReader
+from .language_detector import LanguageDetector, LanguageInfo
 from .linter import LintResult, ProjectLinter
 
 logger = logging.getLogger(__name__)
@@ -24,6 +26,8 @@ class Project:
     analysis_results: dict[str, AnalysisResult] = field(default_factory=dict)
     documentation: dict[str, DocFile] = field(default_factory=dict)
     lint_results: dict[str, LintResult] = field(default_factory=dict)
+    languages: dict[str, LanguageInfo] = field(default_factory=dict)
+    api_specs: dict[str, list[str]] = field(default_factory=dict)
     is_analyzing: bool = False
     is_watching: bool = False
     last_full_analysis: float = 0.0
@@ -37,6 +41,8 @@ class BackgroundWorker:
         self._analyzer = ProjectAnalyzer()
         self._doc_reader = DocReader()
         self._linter = ProjectLinter()
+        self._language_detector = LanguageDetector()
+        self._doc_server_helper = DocServerHelper()
         self._watch_tasks: dict[str, asyncio.Task] = {}
         self._running = False
         self._lock = asyncio.Lock()
@@ -141,6 +147,20 @@ class BackgroundWorker:
         project.is_analyzing = True
 
         try:
+            # Detect languages
+            logger.info(f"Detecting languages for {project.name}")
+            languages = await asyncio.to_thread(
+                self._language_detector.detect_languages, project.path
+            )
+            project.languages = languages
+
+            # Detect API specs
+            logger.info(f"Detecting API specs for {project.name}")
+            api_specs = await asyncio.to_thread(
+                self._language_detector.detect_api_specs, project.path
+            )
+            project.api_specs = api_specs
+
             # Analyze code
             logger.info(f"Starting analysis of {project.name}")
             results = await self._analyzer.analyze_project(project.path)
@@ -173,12 +193,14 @@ class BackgroundWorker:
                     "symbols": sum(len(r.symbols) for r in results.values()),
                     "dependencies": sum(len(r.dependencies) for r in results.values()),
                     "diagnostics": total_diagnostics,
+                    "languages": list(languages.keys()),
                 },
             )
 
             logger.info(
                 f"Analysis complete for {project.name}: "
-                f"{len(results)} files, {len(docs)} docs, {total_diagnostics} diagnostics"
+                f"{len(results)} files, {len(docs)} docs, {total_diagnostics} diagnostics, "
+                f"{len(languages)} languages detected"
             )
 
         except Exception as e:
@@ -459,3 +481,53 @@ class BackgroundWorker:
             }
             for d in result.diagnostics
         ]
+
+    def get_detected_languages(self, project_path: str) -> dict[str, Any]:
+        """Get detected languages for a project."""
+        project = self.get_project(project_path)
+        if not project:
+            return {}
+
+        return self._language_detector.to_dict(project.languages)
+
+    def get_primary_language(self, project_path: str) -> str | None:
+        """Get the primary language for a project."""
+        project = self.get_project(project_path)
+        if not project or not project.languages:
+            return None
+
+        # Return the language with the most files
+        primary = max(project.languages.values(), key=lambda x: x.file_count)
+        return primary.name
+
+    def get_api_specs(self, project_path: str) -> dict[str, list[str]]:
+        """Get detected API specification files for a project."""
+        project = self.get_project(project_path)
+        if not project:
+            return {}
+
+        return project.api_specs
+
+    async def get_language_documentation(
+        self, project_path: str, language: str
+    ) -> dict[str, Any]:
+        """Get language-specific documentation for a project."""
+        project = self.get_project(project_path)
+        if not project:
+            return {"error": "Project not found"}
+
+        return await self._doc_server_helper.get_language_docs(project_path, language)
+
+    async def parse_api_spec(self, file_path: str) -> dict[str, Any]:
+        """Parse an API specification file."""
+        spec = await self._doc_server_helper.parse_swagger_spec(file_path)
+
+        return {
+            "file_path": spec.file_path,
+            "spec_type": spec.spec_type,
+            "version": spec.version,
+            "title": spec.title,
+            "description": spec.description,
+            "endpoints": spec.endpoints,
+            "error": spec.error,
+        }
