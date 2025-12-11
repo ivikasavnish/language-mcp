@@ -3,7 +3,6 @@
 import asyncio
 import json
 import logging
-import os
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -37,6 +36,7 @@ class APISpec:
     title: str | None = None
     description: str | None = None
     endpoints: list[dict[str, Any]] = field(default_factory=list)
+    error: str | None = None
 
 
 class DocServerHelper:
@@ -108,9 +108,8 @@ class DocServerHelper:
                     "tool": "go doc",
                 }
             else:
-                return {
-                    "error": f"Failed to get Go documentation: {stderr.decode('utf-8', errors='ignore')}"
-                }
+                error_msg = stderr.decode("utf-8", errors="ignore")
+                return {"error": f"Failed to get Go documentation: {error_msg}"}
 
         except Exception as e:
             logger.error(f"Error getting godoc info: {e}")

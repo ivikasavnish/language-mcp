@@ -2,7 +2,7 @@
 
 import pytest
 
-from language_mcp.language_detector import LanguageDetector, LANGUAGE_CONFIGS
+from language_mcp.language_detector import LANGUAGE_CONFIGS, LanguageDetector
 
 
 class TestLanguageDetector:

@@ -2,7 +2,7 @@
 
 import pytest
 
-from language_mcp.linter import PythonLinter, ProjectLinter, Diagnostic
+from language_mcp.linter import ProjectLinter, PythonLinter
 
 
 class TestPythonLinter:

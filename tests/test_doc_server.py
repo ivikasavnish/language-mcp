@@ -1,9 +1,10 @@
 """Tests for the documentation server helper module."""
 
 import json
+
 import pytest
 
-from language_mcp.doc_server import DocServerHelper, APISpec
+from language_mcp.doc_server import APISpec, DocServerHelper
 
 
 class TestDocServerHelper:

@@ -310,7 +310,8 @@ class LanguageMCPServer:
                     name="detect_languages",
                     description=(
                         "Detect programming languages used in a project. "
-                        "Returns language statistics, file counts, and available documentation tools."
+                        "Returns language statistics, file counts, "
+                        "and available documentation tools."
                     ),
                     inputSchema={
                         "type": "object",
